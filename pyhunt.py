@@ -42,10 +42,10 @@ class pyhunt():
         
         # CONFIG: SET WORKING PATH AND INITIAL HASH
         self._workingAttributesPath = "./temp/attributes.xml"
-        self.__copyAttributesToWorkPath()
+        self.copyAttributesToWorkPath()
             
         # INIT: LOOP PROCESS
-        self.startProcessor()
+        # self.startProcessor()
         # self.process()
         pass
     
@@ -68,18 +68,18 @@ class pyhunt():
         """This function is a holder for the whole process -> Lookup, copy, parsing and pushing.
         """
         # CHECK IF FILE HASH HAS CHANGED
-        if self.__getAttributesFileHash(self._attributesPath) != self.__getAttributesFileHash(self._workingAttributesPath):
+        if self.getAttributesFileHash(self._attributesPath) != self.getAttributesFileHash(self._workingAttributesPath):
             print('INFO: New file hash was found. Copy file to working directory...')
-            self.__copyAttributesToWorkPath()
+            self.copyAttributesToWorkPath()
             
             # PARSE ATTRIBUTES FILE
-            self.attributes = self.__parseAttributesFile()        
-            self.matchup = self.__parseMatchupFromAttributes()
+            self.attributes = self.parseAttributesFile()        
+            self.matchup = self.parseMatchupFromAttributes()
                   
-        print(f'INFO: File hash is {self.__getAttributesFileHash(self._workingAttributesPath, "md5")}' )
+        print(f'INFO: File hash is {self.getAttributesFileHash(self._workingAttributesPath, "md5")}' )
         pass
     
-    def __parseAttributesFile(self):
+    def parseAttributesFile(self):
         """Get an dictonary from the attributes XML.
 
         Returns:
@@ -93,7 +93,7 @@ class pyhunt():
             
         return attributes                
                 
-    def __parseMatchupFromAttributes(self):
+    def parseMatchupFromAttributes(self):
         """This function reads and parses the attributes into a structured dictionary.
 
         Returns:
@@ -155,16 +155,16 @@ class pyhunt():
 
         
         # SAVE TO FILE
-        # TODO: Remove file
+        # TODO: Remove this part
         datestring = datetime.datetime.utcnow().strftime("%Y%m%d")
-        shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.__getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
-        with open(f"temp/attributes_{datestring}_{self.__getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
+        shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
+        with open(f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
             json.dump(__matchup, f, indent=2)
 
         return __matchup
     
     
-    def __getAttributesFileHash(self, path, algo:str='sha256'):
+    def getAttributesFileHash(self, path, algo:str='sha256'):
         """This function returns the sha256-hash of the attributes.xml 
         """
         if algo.lower() == "sha256":
@@ -186,7 +186,7 @@ class pyhunt():
         else:
             print(f'Invalid algo called: {algo}')
     
-    def __copyAttributesToWorkPath(self):
+    def copyAttributesToWorkPath(self):
         """This function copies the xml file to our local working directory.
         """
         if os.path.isfile(self._workingAttributesPath):
@@ -198,3 +198,4 @@ class pyhunt():
 # UAT
 if __name__ == "__main__":
     hunt = pyhunt()
+    hunt.startProcessor()

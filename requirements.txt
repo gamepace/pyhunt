@@ -1,0 +1,5 @@
+# PYTEST
+pytest >= 7.1.2
+
+# SCHEDULE
+schedule >= 1.1.0
