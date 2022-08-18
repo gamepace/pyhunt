@@ -73,8 +73,8 @@ class pyhunt():
             self.copyAttributesToWorkPath()
             
             # PARSE ATTRIBUTES FILE
-            self.attributes = self.parseAttributesFile()        
-            self.matchup = self.parseMatchupFromAttributes()
+            self.parseAttributesFile()        
+            self.parseMatchupFromAttributes()
                   
         print(f'INFO: File hash is {self.getAttributesFileHash(self._workingAttributesPath, "md5")}' )
         pass
@@ -87,11 +87,13 @@ class pyhunt():
         """
         tree = ET.parse(self._workingAttributesPath)
         root = tree.getroot()
-        attributes = {}
+        _attributes = {}
         for item in root.findall('./Attr'):
-            attributes[item.attrib['name']] = item.attrib['value']
+            _attributes[item.attrib['name']] = item.attrib['value']
             
-        return attributes                
+        self.attributes = _attributes
+        
+        return _attributes                
                 
     def parseMatchupFromAttributes(self):
         """This function reads and parses the attributes into a structured dictionary.
@@ -99,20 +101,20 @@ class pyhunt():
         Returns:
             dict: Returns a dictionary containing match, committer & team informations.
         """
-        __matchup = {'match': {}, 'committer': {} , "teams": {}}
+        _matchup = {'match': {}, 'committer': {} , "teams": {}}
         
         # MATCH SETTINGS
         print('INFO: Parsing match attributes...')
-        __matchup["match"]['unknownboss'] = True if self.attributes.get('MissionBagBoss_-1') == "true" else False
-        __matchup["match"]['butcher'] = True if self.attributes.get('MissionBagBoss_0') == "true" else False
-        __matchup["match"]['spider'] = True if self.attributes.get('MissionBagBoss_1') == "true" else False
-        __matchup["match"]['assassin'] = True if self.attributes.get('MissionBagBoss_2') == "true" else False
-        __matchup["match"]['scrapbeak'] = True if self.attributes.get('MissionBagBoss_3') == "true" else False
+        _matchup["match"]['unknownboss'] = self.attributes.get('MissionBagBoss_-1')
+        _matchup["match"]['butcher'] = self.attributes.get('MissionBagBoss_0')
+        _matchup["match"]['spider'] = self.attributes.get('MissionBagBoss_1')
+        _matchup["match"]['assassin'] = self.attributes.get('MissionBagBoss_2')
+        _matchup["match"]['scrapbeak'] = self.attributes.get('MissionBagBoss_3')
         
-        __matchup["match"]['eventid'] = self.attributes.get('LastLiveEventIDLoaded')
-        __matchup["match"]['numberofteams'] = self.attributes.get('MissionBagNumTeams')
-        __matchup["match"]['quickplay'] = True if self.attributes.get('MissionBagIsQuickPlay') == "true" else False
-        __matchup["match"]['region'] = self.attributes.get('Region')
+        _matchup["match"]['eventid'] = self.attributes.get('LastLiveEventIDLoaded')
+        _matchup["match"]['numberofteams'] = self.attributes.get('MissionBagNumTeams')
+        _matchup["match"]['quickplay'] = self.attributes.get('MissionBagIsQuickPlay')
+        _matchup["match"]['region'] = self.attributes.get('Region')
         
         # COMITTER SETTINGS
         # print('INFO: Committer match attributes...')
@@ -128,16 +130,16 @@ class pyhunt():
                 __attributeValue = self.attributes[key]
                 
                 # CHECK IF TEAM EXISTS ALREADY
-                if __teamId not in __matchup['teams'].keys():
-                    __matchup['teams'][__teamId] = {}
-                    __matchup['teams'][__teamId]['players'] = {}
+                if __teamId not in _matchup['teams'].keys():
+                    _matchup['teams'][__teamId] = {}
+                    _matchup['teams'][__teamId]['players'] = {}
                 
                 # CHECK IF PLAYER ENTRY IS PRESENT
-                if __playerId not in __matchup['teams'][__teamId]['players'].keys():
-                    __matchup['teams'][__teamId]['players'][__playerId] = {}
+                if __playerId not in _matchup['teams'][__teamId]['players'].keys():
+                    _matchup['teams'][__teamId]['players'][__playerId] = {}
                     
                 # APPEND PLAYER ATTRIBUTE TO MATCHUP FILE
-                __matchup['teams'][__teamId]['players'][__playerId][__attributeId] = __attributeValue 
+                _matchup['teams'][__teamId]['players'][__playerId][__attributeId] = __attributeValue 
                
             # TEAM BAGs 
             elif re.search(r"MissionBagTeam_[0-4].", key):
@@ -146,12 +148,12 @@ class pyhunt():
                 __attributeValue = self.attributes[key]
             
                 # CHECK IF TEAM EXISTS ALREADY
-                if __teamId not in __matchup['teams'].keys():
-                    __matchup['teams'][__teamId] = {}
-                    __matchup['teams'][__teamId]['players'] = {}
+                if __teamId not in _matchup['teams'].keys():
+                    _matchup['teams'][__teamId] = {}
+                    _matchup['teams'][__teamId]['players'] = {}
             
                 # APPEND TEAM ATTRIBUTE TO MATCHUP FILE
-                __matchup["teams"][__teamId][__attributeId] = __attributeValue
+                _matchup["teams"][__teamId][__attributeId] = __attributeValue
 
         
         # SAVE TO FILE
@@ -159,9 +161,11 @@ class pyhunt():
         datestring = datetime.datetime.utcnow().strftime("%Y%m%d")
         shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
         with open(f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
-            json.dump(__matchup, f, indent=2)
+            json.dump(_matchup, f, indent=2)
 
-        return __matchup
+        self.matchup = _matchup
+
+        return _matchup
     
     
     def getAttributesFileHash(self, path, algo:str='sha256'):

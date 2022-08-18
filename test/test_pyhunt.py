@@ -23,7 +23,57 @@ def test_parseAttributesFile():
 
 # parseMatchupFromAttributes
 def test_parseMatchupFromAttributes():
-    assert True
+    # GENERATE LAST FILE
+    hunt = pyhunt()
+    hunt.copyAttributesToWorkPath()
+    hunt.parseAttributesFile()  
+          
+    hunt.parseMatchupFromAttributes()
+    print(f"TESTING FILE HASH: {hunt.getAttributesFileHash(hunt._workingAttributesPath, 'md5')}")
+    
+    # TESTS
+    type = isinstance(hunt.matchup, dict)
+    
+    match_keys = len(hunt.matchup['match'].keys()) >= 5
+    match_value_check = True if (hunt.matchup['match']['butcher'] == "true" or hunt.matchup['match']['spider'] == "true" or hunt.matchup['match']['assassin'] == "true" or hunt.matchup['match']['scrapbeak'] == "true") else False
+    match_region_check = len(hunt.matchup['match']['region']) >= 2  
+    
+    team_keys = len(hunt.matchup['teams'].keys()) > 0 
+    
+    passed_teams = 0
+
+    for teamid in hunt.matchup['teams']:
+        team = hunt.matchup['teams'][teamid]
+        
+        _team_mmr = isinstance(int(team['mmr']), int)
+        _team_players = len(team['players'].keys()) > 0
+        
+        _passed_players = 0
+        
+        for playerid in team['players']:
+            
+            player = hunt.matchup['teams'][teamid]['players'][playerid]
+            
+            _player_mmr = isinstance(int(player['mmr']), int)
+            _player_name = len(player['bloodlinename']) > 0
+            _player_id = isinstance(int(player['profileid']), int)
+            _player_keys = len(player.keys()) >= 20
+            
+            if _player_mmr and _player_name and _player_id and _player_keys:
+                _passed_players += 1
+
+            print(f"PLAYER {teamid}.{playerid} | MMR: {_player_mmr}, Name: {_player_name}, Id: {_player_id}, Keys: {_player_keys}")
+        if _passed_players == len(team['players'].keys()) and _team_mmr and _team_players:
+            passed_teams += 1
+            
+        print(f"TEAM ({teamid}) |  Passed: {passed_teams} of {len(team['players'].keys())} players")
+    
+    print(f"MATCH | Passed: {passed_teams} of {len(hunt.matchup['teams'].keys())} teams")
+    
+    
+    team_value_check = passed_teams == len(hunt.matchup['teams'].keys())
+    
+    assert type and match_keys and match_value_check and match_region_check and team_keys and team_value_check
 
 # getAttributesFileHash
 def test_getAttributesFileHash():
