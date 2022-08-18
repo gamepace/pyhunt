@@ -42,10 +42,10 @@ class pyhunt():
         
         # CONFIG: SET WORKING PATH AND INITIAL HASH
         self._workingAttributesPath = "./temp/attributes.xml"
-        self.__copyAttributesToWorkPath()
+        self.copyAttributesToWorkPath()
             
         # INIT: LOOP PROCESS
-        self.startProcessor()
+        # self.startProcessor()
         # self.process()
         pass
     
@@ -68,18 +68,18 @@ class pyhunt():
         """This function is a holder for the whole process -> Lookup, copy, parsing and pushing.
         """
         # CHECK IF FILE HASH HAS CHANGED
-        if self.__getAttributesFileHash(self._attributesPath) != self.__getAttributesFileHash(self._workingAttributesPath):
+        if self.getAttributesFileHash(self._attributesPath) != self.getAttributesFileHash(self._workingAttributesPath):
             print('INFO: New file hash was found. Copy file to working directory...')
-            self.__copyAttributesToWorkPath()
+            self.copyAttributesToWorkPath()
             
             # PARSE ATTRIBUTES FILE
-            self.attributes = self.__parseAttributesFile()        
-            self.matchup = self.__parseMatchupFromAttributes()
+            self.parseAttributesFile()        
+            self.parseMatchupFromAttributes()
                   
-        print(f'INFO: File hash is {self.__getAttributesFileHash(self._workingAttributesPath, "md5")}' )
+        print(f'INFO: File hash is {self.getAttributesFileHash(self._workingAttributesPath, "md5")}' )
         pass
     
-    def __parseAttributesFile(self):
+    def parseAttributesFile(self):
         """Get an dictonary from the attributes XML.
 
         Returns:
@@ -87,32 +87,34 @@ class pyhunt():
         """
         tree = ET.parse(self._workingAttributesPath)
         root = tree.getroot()
-        attributes = {}
+        _attributes = {}
         for item in root.findall('./Attr'):
-            attributes[item.attrib['name']] = item.attrib['value']
+            _attributes[item.attrib['name']] = item.attrib['value']
             
-        return attributes                
+        self.attributes = _attributes
+        
+        return _attributes                
                 
-    def __parseMatchupFromAttributes(self):
+    def parseMatchupFromAttributes(self):
         """This function reads and parses the attributes into a structured dictionary.
 
         Returns:
             dict: Returns a dictionary containing match, committer & team informations.
         """
-        __matchup = {'match': {}, 'committer': {} , "teams": {}}
+        _matchup = {'match': {}, 'committer': {} , "teams": {}}
         
         # MATCH SETTINGS
         print('INFO: Parsing match attributes...')
-        __matchup["match"]['unknownboss'] = True if self.attributes.get('MissionBagBoss_-1') == "true" else False
-        __matchup["match"]['butcher'] = True if self.attributes.get('MissionBagBoss_0') == "true" else False
-        __matchup["match"]['spider'] = True if self.attributes.get('MissionBagBoss_1') == "true" else False
-        __matchup["match"]['assassin'] = True if self.attributes.get('MissionBagBoss_2') == "true" else False
-        __matchup["match"]['scrapbeak'] = True if self.attributes.get('MissionBagBoss_3') == "true" else False
+        _matchup["match"]['unknownboss'] = self.attributes.get('MissionBagBoss_-1')
+        _matchup["match"]['butcher'] = self.attributes.get('MissionBagBoss_0')
+        _matchup["match"]['spider'] = self.attributes.get('MissionBagBoss_1')
+        _matchup["match"]['assassin'] = self.attributes.get('MissionBagBoss_2')
+        _matchup["match"]['scrapbeak'] = self.attributes.get('MissionBagBoss_3')
         
-        __matchup["match"]['eventid'] = self.attributes.get('LastLiveEventIDLoaded')
-        __matchup["match"]['numberofteams'] = self.attributes.get('MissionBagNumTeams')
-        __matchup["match"]['quickplay'] = True if self.attributes.get('MissionBagIsQuickPlay') == "true" else False
-        __matchup["match"]['region'] = self.attributes.get('Region')
+        _matchup["match"]['eventid'] = self.attributes.get('LastLiveEventIDLoaded')
+        _matchup["match"]['numberofteams'] = self.attributes.get('MissionBagNumTeams')
+        _matchup["match"]['quickplay'] = self.attributes.get('MissionBagIsQuickPlay')
+        _matchup["match"]['region'] = self.attributes.get('Region')
         
         # COMITTER SETTINGS
         # print('INFO: Committer match attributes...')
@@ -128,16 +130,16 @@ class pyhunt():
                 __attributeValue = self.attributes[key]
                 
                 # CHECK IF TEAM EXISTS ALREADY
-                if __teamId not in __matchup['teams'].keys():
-                    __matchup['teams'][__teamId] = {}
-                    __matchup['teams'][__teamId]['players'] = {}
+                if __teamId not in _matchup['teams'].keys():
+                    _matchup['teams'][__teamId] = {}
+                    _matchup['teams'][__teamId]['players'] = {}
                 
                 # CHECK IF PLAYER ENTRY IS PRESENT
-                if __playerId not in __matchup['teams'][__teamId]['players'].keys():
-                    __matchup['teams'][__teamId]['players'][__playerId] = {}
+                if __playerId not in _matchup['teams'][__teamId]['players'].keys():
+                    _matchup['teams'][__teamId]['players'][__playerId] = {}
                     
                 # APPEND PLAYER ATTRIBUTE TO MATCHUP FILE
-                __matchup['teams'][__teamId]['players'][__playerId][__attributeId] = __attributeValue 
+                _matchup['teams'][__teamId]['players'][__playerId][__attributeId] = __attributeValue 
                
             # TEAM BAGs 
             elif re.search(r"MissionBagTeam_[0-4].", key):
@@ -146,25 +148,27 @@ class pyhunt():
                 __attributeValue = self.attributes[key]
             
                 # CHECK IF TEAM EXISTS ALREADY
-                if __teamId not in __matchup['teams'].keys():
-                    __matchup['teams'][__teamId] = {}
-                    __matchup['teams'][__teamId]['players'] = {}
+                if __teamId not in _matchup['teams'].keys():
+                    _matchup['teams'][__teamId] = {}
+                    _matchup['teams'][__teamId]['players'] = {}
             
                 # APPEND TEAM ATTRIBUTE TO MATCHUP FILE
-                __matchup["teams"][__teamId][__attributeId] = __attributeValue
+                _matchup["teams"][__teamId][__attributeId] = __attributeValue
 
         
         # SAVE TO FILE
-        # TODO: Remove file
+        # TODO: Remove this part
         datestring = datetime.datetime.utcnow().strftime("%Y%m%d")
-        shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.__getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
-        with open(f"temp/attributes_{datestring}_{self.__getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
-            json.dump(__matchup, f, indent=2)
+        shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
+        with open(f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
+            json.dump(_matchup, f, indent=2)
 
-        return __matchup
+        self.matchup = _matchup
+
+        return _matchup
     
     
-    def __getAttributesFileHash(self, path, algo:str='sha256'):
+    def getAttributesFileHash(self, path, algo:str='sha256'):
         """This function returns the sha256-hash of the attributes.xml 
         """
         if algo.lower() == "sha256":
@@ -186,7 +190,7 @@ class pyhunt():
         else:
             print(f'Invalid algo called: {algo}')
     
-    def __copyAttributesToWorkPath(self):
+    def copyAttributesToWorkPath(self):
         """This function copies the xml file to our local working directory.
         """
         if os.path.isfile(self._workingAttributesPath):
@@ -198,3 +202,4 @@ class pyhunt():
 # UAT
 if __name__ == "__main__":
     hunt = pyhunt()
+    hunt.startProcessor()
