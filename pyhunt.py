@@ -6,30 +6,7 @@ import xml.etree.ElementTree as ET
 
 
 # C:\Program Files (x86)\Steam\steamapps\common\Hunt Showdown\user\profiles\default
-
-# HUNT ATTRIBUTES XML DATA CLASSES
-@dataclass
-class huntPlayer():
-    playerName: str
-    playerId: int # steamid
-    playerMMR: int
-    playerSkillbased: bool
-    
-@dataclass
-class huntTeam():
-    teamId: str # Generated md5 hash from all steamids
-    teamHandicap: int
-    teamInvite: int
-    teamNumPlayers: int
-    teamMMR: int
-    teamUploadFlag: bool
-
-@dataclass
-class huntSettings():
-    test:str = None
-    
-  
-  
+ 
 # HUNT BASE CLASS
 class pyhunt():
     def __init__(self, attributesPath:str="C:/Program Files (x86)/Steam/steamapps/common/Hunt Showdown/user/profiles/default/attributes.xml"):
@@ -43,7 +20,9 @@ class pyhunt():
         # CONFIG: SET WORKING PATH AND INITIAL HASH
         self._workingAttributesPath = "./temp/attributes.xml"
         self.copyAttributesToWorkPath()
-            
+        
+        self.matchup = {}
+        
         # INIT: LOOP PROCESS
         # self.startProcessor()
         # self.process()
@@ -153,23 +132,28 @@ class pyhunt():
                     _matchup['teams'][__teamId]['players'] = {}
             
                 # APPEND TEAM ATTRIBUTE TO MATCHUP FILE
-                _matchup["teams"][__teamId][__attributeId] = __attributeValue
-
+                _matchup["teams"][__teamId][__attributeId] = __attributeValue       
         
-        # SAVE TO FILE
-        # TODO: Remove this part
-        datestring = datetime.datetime.utcnow().strftime("%Y%m%d")
-        shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
-        with open(f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
-            json.dump(_matchup, f, indent=2)
-
-        self.matchup = _matchup
-
-        return _matchup
-    
+        # Check if matchup is the same:
+        if self.getDictonaryFileHash(_matchup, 'md5') != self.getDictonaryFileHash(self.matchup, 'md5'):
+            print(f"INFO: New match hash was found... {self.getDictonaryFileHash(_matchup, 'md5')}")
+            self.matchup = _matchup
+            
+            # TODO: COPY TO FILE // Change to kafka-producer
+            datestring = datetime.datetime.utcnow().strftime("%Y%m%d")
+            shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
+            with open(f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
+                json.dump(_matchup, f, indent=2)
+                
+            return _matchup
+                
+        else:
+            print(f"INFO: The match hash is {self.getDictonaryFileHash(self.matchup, 'md5')}")
+            return self.matchup
+            
     
     def getAttributesFileHash(self, path, algo:str='sha256'):
-        """This function returns the sha256-hash of the attributes.xml 
+        """This function returns the sha256-hash or md4-hash of the attributes.xml 
         """
         if algo.lower() == "sha256":
             sha256 = hashlib.sha256()
@@ -189,6 +173,7 @@ class pyhunt():
             
         else:
             print(f'Invalid algo called: {algo}')
+            return None
     
     def copyAttributesToWorkPath(self):
         """This function copies the xml file to our local working directory.
@@ -198,7 +183,26 @@ class pyhunt():
         
         shutil.copyfile(self._attributesPath, self._workingAttributesPath)
         
-
+    def getDictonaryFileHash(self, dictionary:dict, algo:str='sha256'):
+        """This function returns the sha256-hash or md5-hash of the match file 
+        """
+        
+        if algo.lower() == "sha256":
+            sha256 = hashlib.sha256()  
+            sha256.update(json.dumps(dictionary).encode())    
+            return sha256.hexdigest()
+        
+        elif algo.lower() == "md5":
+            md5 = hashlib.md5() 
+            md5.update(json.dumps(dictionary).encode())               
+            return md5.hexdigest()
+        
+        else:
+            print(f'Invalid algo called: {algo}')
+            return None
+            
+        
+    
 # UAT
 if __name__ == "__main__":
     hunt = pyhunt()

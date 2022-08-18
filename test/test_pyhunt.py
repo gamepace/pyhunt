@@ -76,9 +76,8 @@ def test_parseMatchupFromAttributes():
     assert type and match_keys and match_value_check and match_region_check and team_keys and team_value_check
 
 # getAttributesFileHash
-def test_getAttributesFileHash():
+def test_getAttributesFileHash():   
     hunt = pyhunt()
-    
     # MD5
     md5 = hunt.getAttributesFileHash(hunt._workingAttributesPath, 'md5')
     # SHA256
@@ -87,6 +86,26 @@ def test_getAttributesFileHash():
     unknown = hunt.getAttributesFileHash(hunt._workingAttributesPath, 'Not an Algo.')
     
     assert isinstance(md5, str) and isinstance(sha256, str) and len(md5) == 32 and len(sha256) == 64 and unknown is None 
+
+# getDictonaryFileHash
+def test_getDictonaryFileHash():
+    hunt = pyhunt()
+    hunt.copyAttributesToWorkPath()
+    hunt.parseAttributesFile()  
+          
+    hunt.parseMatchupFromAttributes()
+    print(f"TESTING FILE HASH: {hunt.getAttributesFileHash(hunt._workingAttributesPath, 'md5')}")
+    
+    
+    # MD5
+    md5 = hunt.getDictonaryFileHash(hunt.matchup, 'md5')
+    # SHA256
+    sha256 = hunt.getDictonaryFileHash(hunt.matchup, 'sha256')
+    # Issue
+    unknown = hunt.getDictonaryFileHash(hunt.matchup, 'Not an Algo.') 
+    
+    assert isinstance(md5, str) and isinstance(sha256, str) and len(md5) == 32 and len(sha256) == 64 and unknown is None 
+    
 
 # copyAttributesToWorkPath
 def test_copyAttributesToWorkPath():
