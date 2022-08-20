@@ -91,14 +91,14 @@ class pyhunt():
         path = os.path.join(self._steamPath, "config/loginusers.vdf")
         
         _raw_profiles = vdf.load(open(path, 'r'))['users']
-        _LoginTimeStamp = datetime.datetime.fromtimestamp(0)
         
         # FIND LAST USER LOGIN
         for user in _raw_profiles:
-            if datetime.datetime.fromtimestamp(int(_raw_profiles[user]['Timestamp'])) > _LoginTimeStamp:
-                _LoginTimeStamp = datetime.datetime.fromtimestamp(int(_raw_profiles[user]['Timestamp']))
+            
+            if int(_raw_profiles[user]['MostRecent']) == 1:
                 self._steamProfile = _raw_profiles[user]
-                
+                break
+            
         print(f"INFO: Currently logged in is: {self._steamProfile['PersonaName']} ({self._steamProfile['AccountName']})")
         
         return self._steamProfile
