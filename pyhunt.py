@@ -140,7 +140,7 @@ class pyhunt():
             self.matchup = _matchup
             
             # TODO: COPY TO FILE // Change to kafka-producer
-            datestring = datetime.datetime.utcnow().strftime("%Y%m%d")
+            datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
             shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
             with open(f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
                 json.dump(_matchup, f, indent=2)
