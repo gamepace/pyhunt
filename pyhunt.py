@@ -1,9 +1,9 @@
-from dataclasses import dataclass
-import os, shutil, re, json
+import os, shutil, re, json, glob
 import datetime, time, schedule
 import hashlib
 import xml.etree.ElementTree as ET
-
+import winreg
+import vdf
 
 # C:\Program Files (x86)\Steam\steamapps\common\Hunt Showdown\user\profiles\default
  
@@ -20,8 +20,11 @@ class pyhunt():
         # CONFIG: SET WORKING PATH AND INITIAL HASH
         self._workingAttributesPath = "./temp/attributes.xml"
         self.copyAttributesToWorkPath()
-        
+                
         self.matchup = {}
+        
+        # SETUP STEAM PATH
+        self.parseSteamInstallPath()
         
         # INIT: LOOP PROCESS
         # self.startProcessor()
@@ -46,7 +49,11 @@ class pyhunt():
     def process(self):
         """This function is a holder for the whole process -> Lookup, copy, parsing and pushing.
         """
+        # GET LOGGED IN USER
+        self.parsePlayerProfileFromSteam()
+        
         # CHECK IF FILE HASH HAS CHANGED
+        
         if self.getAttributesFileHash(self._attributesPath) != self.getAttributesFileHash(self._workingAttributesPath):
             print('INFO: New file hash was found. Copy file to working directory...')
             self.copyAttributesToWorkPath()
@@ -57,6 +64,49 @@ class pyhunt():
                   
         print(f'INFO: File hash is {self.getAttributesFileHash(self._workingAttributesPath, "md5")}' )
         pass
+    
+    
+    def parseSteamInstallPath(self):
+        """This function returns the steam installation path.
+
+        Returns:
+            str: Install path of steam
+        """
+        hkey = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "SOFTWARE\WOW6432Node\Valve\Steam")
+        steamPath = winreg.QueryValueEx(hkey, "InstallPath")[0]
+    
+        self._steamPath = steamPath
+        
+        return steamPath
+    
+    def parsePlayerProfileFromSteam(self):
+        """This function returns the current logged in user as a dictionary
+
+        Returns:
+            dictonary: Holds information about the current steam user
+        """
+        if not self._steamPath:
+            self.parseSteamInstallPath()
+        
+        path = os.path.join(self._steamPath, "config/loginusers.vdf")
+        
+        _raw_profiles = vdf.load(open(path, 'r'))['users']
+        
+        # FIND LAST USER LOGIN
+        for user in _raw_profiles:
+            
+            if int(_raw_profiles[user]['MostRecent']) == 1:
+                self._steamProfile = _raw_profiles[user]
+                break
+            
+        print(f"INFO: Currently logged in is: {self._steamProfile['PersonaName']} ({self._steamProfile['AccountName']})")
+        
+        return self._steamProfile
+        
+        
+
+        
+    
     
     def parseAttributesFile(self):
         """Get an dictonary from the attributes XML.

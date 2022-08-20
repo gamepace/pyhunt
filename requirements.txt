@@ -3,3 +3,6 @@ pytest >= 7.1.2
 
 # SCHEDULE
 schedule >= 1.1.0
+
+# ValvePython -> vdf
+vdf >= 3.4

@@ -106,7 +106,6 @@ def test_getDictonaryFileHash():
     
     assert isinstance(md5, str) and isinstance(sha256, str) and len(md5) == 32 and len(sha256) == 64 and unknown is None 
     
-
 # copyAttributesToWorkPath
 def test_copyAttributesToWorkPath():
     hunt = pyhunt()
@@ -115,4 +114,22 @@ def test_copyAttributesToWorkPath():
     copyHash = hunt.getAttributesFileHash(hunt._workingAttributesPath)
     
     assert isinstance(srceHash, str) and isinstance(copyHash, str) and srceHash == copyHash
+
+# parseSteamInstallPath
+def test_parseSteamInstallPath():
+    hunt = pyhunt()
+    installPath = hunt._steamPath
+    assert isinstance(installPath, str) and len(installPath) >= 3
+
+# parsePlayerProfileFromSteam
+def test_parsePlayerProfileFromSteam():
+    hunt = pyhunt()
+    profile = hunt.parsePlayerProfileFromSteam()
+    try: 
+        recent = int(profile['MostRecent']) 
+    except:
+        recent = -1
+        
+    assert isinstance(profile['PersonaName'], str) and recent >= 0
+
     
