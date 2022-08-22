@@ -7,107 +7,20 @@ import vdf
 
 # C:\Program Files (x86)\Steam\steamapps\common\Hunt Showdown\user\profiles\default
  
-# HUNT BASE CLASS
+############################
+### BASE ATTRIBUTE CLASS ###
+############################
 class pyhunt():
     def __init__(self, attributesPath:str="C:/Program Files (x86)/Steam/steamapps/common/Hunt Showdown/user/profiles/default/attributes.xml"):
-        # CONFIG: SET SOURCE PATH
+        # CONFIG: SET SOURCE PATH       
         if os.path.isfile(attributesPath):
             self._attributesPath = attributesPath
         else:
-            # TODO: UI POPUP
-            self._attributesPath = input("Please provide the path to your attributes.xml!\nThe file is located under [InstallationPath]/user/profiles/default/attributes.xml\n")
-        
-        # CONFIG: SET WORKING PATH AND INITIAL HASH
-        self._workingAttributesPath = "./temp/attributes.xml"
-        self.copyAttributesToWorkPath()
-                
-        self.matchup = {}
-        
-        # SETUP STEAM PATH
-        self.parseSteamInstallPath()
-        
-        # INIT: LOOP PROCESS
-        # self.startProcessor()
-        # self.process()
+            print(f"ISSUE: Attributes is not valid. Please check the provided path! Quitting...")
+            quit(1)
+
         pass
-    
-    def startProcessor(self, delay = 5):
-        """This function starts a infitive loop to watch and process the xml.
-
-        Args:
-            delay (int, optional): Delay between file lookups. Defaults to 5.
-        """
         
-        schedule.every(delay).seconds.do(self.process)
-        while True:
-            schedule.run_pending()
-            time.sleep(delay)
-            
-        pass
-    
-    
-    def process(self):
-        """This function is a holder for the whole process -> Lookup, copy, parsing and pushing.
-        """
-        # GET LOGGED IN USER
-        self.parsePlayerProfileFromSteam()
-        
-        # CHECK IF FILE HASH HAS CHANGED
-        
-        if self.getAttributesFileHash(self._attributesPath) != self.getAttributesFileHash(self._workingAttributesPath):
-            print('INFO: New file hash was found. Copy file to working directory...')
-            self.copyAttributesToWorkPath()
-            
-            # PARSE ATTRIBUTES FILE
-            self.parseAttributesFile()        
-            self.parseMatchupFromAttributes()
-                  
-        print(f'INFO: File hash is {self.getAttributesFileHash(self._workingAttributesPath, "md5")}' )
-        pass
-    
-    
-    def parseSteamInstallPath(self):
-        """This function returns the steam installation path.
-
-        Returns:
-            str: Install path of steam
-        """
-        hkey = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "SOFTWARE\WOW6432Node\Valve\Steam")
-        steamPath = winreg.QueryValueEx(hkey, "InstallPath")[0]
-    
-        self._steamPath = steamPath
-        
-        return steamPath
-    
-    def parsePlayerProfileFromSteam(self):
-        """This function returns the current logged in user as a dictionary
-
-        Returns:
-            dictonary: Holds information about the current steam user
-        """
-        if not self._steamPath:
-            self.parseSteamInstallPath()
-        
-        path = os.path.join(self._steamPath, "config/loginusers.vdf")
-        
-        _raw_profiles = vdf.load(open(path, 'r'))['users']
-        
-        # FIND LAST USER LOGIN
-        for user in _raw_profiles:
-            
-            if int(_raw_profiles[user]['MostRecent']) == 1:
-                self._steamProfile = _raw_profiles[user]
-                break
-            
-        print(f"INFO: Currently logged in is: {self._steamProfile['PersonaName']} ({self._steamProfile['AccountName']})")
-        
-        return self._steamProfile
-        
-        
-
-        
-    
-    
     def parseAttributesFile(self):
         """Get an dictonary from the attributes XML.
 
@@ -123,6 +36,9 @@ class pyhunt():
         self.attributes = _attributes
         
         return _attributes                
+       
+    def enrichMatchup(self, matchup):
+        pass
                 
     def parseMatchupFromAttributes(self):
         """This function reads and parses the attributes into a structured dictionary.
@@ -146,8 +62,9 @@ class pyhunt():
         _matchup["match"]['region'] = self.attributes.get('Region')
         
         # COMITTER SETTINGS
-        # print('INFO: Committer match attributes...')
-        
+        print('INFO: Committer match attributes...')
+        _matchup["committer"]['displayName'] = self._steamProfile['PersonaName']
+        _matchup["committer"]['steamName'] = self._steamProfile['PersonaName']
         # PARSING KEYS FOR PLAYER / TEAMS
         print('INFO: Parsing player and team attributes...')
         for key in self.attributes.keys(): 
@@ -184,10 +101,14 @@ class pyhunt():
                 # APPEND TEAM ATTRIBUTE TO MATCHUP FILE
                 _matchup["teams"][__teamId][__attributeId] = __attributeValue       
         
+        # Cleanup match
+        
         # Check if matchup is the same:
         if self.getDictonaryFileHash(_matchup, 'md5') != self.getDictonaryFileHash(self.matchup, 'md5'):
             print(f"INFO: New match hash was found... {self.getDictonaryFileHash(_matchup, 'md5')}")
             self.matchup = _matchup
+            # CLEAN UP SETP
+            
             
             # TODO: COPY TO FILE // Change to kafka-producer
             datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
@@ -200,10 +121,75 @@ class pyhunt():
         else:
             print(f"INFO: The match hash is {self.getDictonaryFileHash(self.matchup, 'md5')}")
             return self.matchup
-            
     
-    def getAttributesFileHash(self, path, algo:str='sha256'):
-        """This function returns the sha256-hash or md4-hash of the attributes.xml 
+    def copyAttributesToWorkPath(self):
+        """This function copies the xml file to our local working directory.
+        """
+        if os.path.isfile(self._workingAttributesPath):
+            os.remove(self._workingAttributesPath)
+        
+        shutil.copyfile(self._attributesPath, self._workingAttributesPath)
+        
+    
+
+############################
+### CLIENT CLASS ###########
+############################  
+class PyhuntClient():
+    """Class for basic client functions like configs, monitoring, etc...
+    """
+    def __init__(self) -> None:
+        # TRY READ CONFIG AND UPDATE
+        
+        pass
+    
+    def start_processor(self, delay = 5):
+        """This function starts a infitive loop to watch and process the xml.
+
+        Args:
+            delay (int, optional): Delay between file lookups. Defaults to 5.
+        """
+        
+        schedule.every(delay).seconds.do(self.process)
+        while True:
+            schedule.run_pending()
+            time.sleep(delay)
+            
+    def process(self):
+        """This function is a holder for the whole process -> Lookup, copy, parsing and pushing.
+        """
+        # GET LOGGED IN USER
+        self.parsePlayerProfileFromSteam()
+        
+        # CHECK IF FILE HASH HAS CHANGED
+        
+        if self.getAttributesFileHash(self._attributesPath) != self.getAttributesFileHash(self._workingAttributesPath):
+            print('INFO: New file hash was found. Copy file to working directory...')
+            self.copyAttributesToWorkPath()
+            
+            # PARSE ATTRIBUTES FILE
+            self.parseAttributesFile()        
+            self.parseMatchupFromAttributes()
+                  
+        print(f'INFO: File hash is {self.getAttributesFileHash(self._workingAttributesPath, "md5")}' )
+        pass
+    
+############################
+### UTILITY CLASS ##########
+############################       
+class PyHuntUtility():
+    """Class for a collection of utility functions.    
+    """
+    
+    def __init__(self) -> None:
+        pass
+    
+    
+    def get_file_hash(path:str, algo='md5'):
+        """This function returns the sha256-hash or md4-hash of any given file path 
+        
+        Returns:
+            str: Hash of given file content 
         """
         if algo.lower() == "sha256":
             sha256 = hashlib.sha256()
@@ -220,21 +206,17 @@ class pyhunt():
                 md5.update(hash)
             
             return md5.hexdigest()
-            
+
         else:
             print(f'Invalid algo called: {algo}')
             return None
     
-    def copyAttributesToWorkPath(self):
-        """This function copies the xml file to our local working directory.
-        """
-        if os.path.isfile(self._workingAttributesPath):
-            os.remove(self._workingAttributesPath)
+    
+    def get_dict_hash(dictionary:dict, algo='md5'):
+        """This function returns the sha256-hash or md5-hash of a given dictionary
         
-        shutil.copyfile(self._attributesPath, self._workingAttributesPath)
-        
-    def getDictonaryFileHash(self, dictionary:dict, algo:str='sha256'):
-        """This function returns the sha256-hash or md5-hash of the match file 
+        Returns:
+            str: Hash of given dictionary
         """
         
         if algo.lower() == "sha256":
@@ -249,11 +231,44 @@ class pyhunt():
         
         else:
             print(f'Invalid algo called: {algo}')
-            return None
-            
-        
+            return None 
     
-# UAT
+    
+    def get_steam_install_path():
+        """This function returns the steam installation path.
+
+        Returns:
+            str: Install path of steam
+        """
+        hkey = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "SOFTWARE\WOW6432Node\Valve\Steam")       
+        return winreg.QueryValueEx(hkey, "InstallPath")[0]
+    
+    def get_steam_profile(steam_path):
+        """This function returns the current logged in user as a dictionary
+
+        Returns:
+            dictonary: Holds information about the current steam user
+        """            
+        path = os.path.join(steam_path, "config/loginusers.vdf")
+        raw_profiles = vdf.load(open(path, 'r'))['users']
+        
+        # FIND LAST USER LOGIN
+        for user in raw_profiles:
+            
+            if int(raw_profiles[user]['MostRecent']) == 1:
+                steamProfile = raw_profiles[user]
+                break
+        
+        # TODO: GET STEAM PROFILE INFO VIA FILE OR WEBREQUEST
+        
+        
+        print(f"INFO: Currently logged in is: {steamProfile['PersonaName']} ({steamProfile['AccountName']})") 
+        return steamProfile
+    
+    
+####################
+# UAT ##############
+####################
 if __name__ == "__main__":
     hunt = pyhunt()
     hunt.startProcessor()
