@@ -212,7 +212,7 @@ class PyhuntClient():
         # CHECK IF FILE HASH IS DIFFERENT TO LAST KNOWN
         print(f'INFO: Monitoring {self.config["hunt_attributes_path"]}...')
         file_hash = PyHuntUtility.get_file_hash(self.config['hunt_attributes_path'])
-        if file_hash != self.config['last_file_hash']:
+        if file_hash != self.config['last_file_hash'] or True:
             print(f"INFO: New file hash found: {file_hash}")
             self.config['last_file_hash'] = file_hash
             self.write_config()
@@ -233,6 +233,7 @@ class PyhuntClient():
                 with open(f"temp/attributes_{datestring}_{file_hash}.json", 'w') as f:
                     json.dump(content, f, indent=2)
                 # TODO: Enrich content
+                self.steam_profile = PyHuntUtility.get_active_steam_profile(self.config['steam_install_path'])
                 
                 # TODO: Push to Kafka
             
@@ -336,20 +337,21 @@ class PyHuntUtility():
         Returns:
             dictonary: Holds information about the current steam user
         """            
-        path = os.path.join(steam_path, "config/loginusers.vdf")
-        raw_profiles = vdf.load(open(path, 'r'))['users']
+        path = os.path.join(steam_path, "config")
+        raw_profiles = vdf.load(open(os.path.join(path, "loginusers.vdf"), 'r'))['users']
         
         # FIND LAST USER LOGIN
         for user in raw_profiles:
             
             if int(raw_profiles[user]['MostRecent']) == 1:
-                steamProfile = raw_profiles[user]
+                steam_profile = raw_profiles[user]
                 break
         
-        # TODO: GET STEAM PROFILE INFO VIA FILE OR WEBREQUEST
-        
-        print(f"INFO: Currently logged in is: {steamProfile['PersonaName']} ({steamProfile['AccountName']})") 
-        return steamProfile
+        # GET STEAM PROFILE INFO VIA FILE 
+        steam_config = vdf.load(open(os.path.join(path, "config.vdf"), 'r'))
+        steam_profile['SteamID'] = steam_config['InstallConfigStore']['Software']['Valve']['steam']['Accounts'][steam_profile['AccountName']]['SteamID']
+        print(f"INFO: Currently logged in is: {steam_profile['PersonaName']} ({steam_profile['AccountName']} | {steam_profile['SteamID']})") 
+        return steam_profile
     
     def get_hunt_install_path(path_hint=None):
         install_path = None
@@ -372,5 +374,6 @@ class PyHuntUtility():
 ####################
 if __name__ == "__main__":
     huntClient = PyhuntClient()
-    huntClient.start_processor()
+    #huntClient.start_processor()
+    PyHuntUtility.get_active_steam_profile("C:\\Program Files (x86)\\Steam")
     quit()
