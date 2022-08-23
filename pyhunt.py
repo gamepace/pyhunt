@@ -1,72 +1,75 @@
+from genericpath import isfile
 import os, shutil, re, json, glob
+from posixpath import dirname
 import datetime, time, schedule
 import hashlib
 import xml.etree.ElementTree as ET
 import winreg
 import vdf
-
 # C:\Program Files (x86)\Steam\steamapps\common\Hunt Showdown\user\profiles\default
  
 ############################
 ### BASE ATTRIBUTE CLASS ###
 ############################
 class pyhunt():
-    def __init__(self, attributesPath:str="C:/Program Files (x86)/Steam/steamapps/common/Hunt Showdown/user/profiles/default/attributes.xml"):
-        # CONFIG: SET SOURCE PATH       
-        if os.path.isfile(attributesPath):
-            self._attributesPath = attributesPath
+    def __init__(self, attributes_path:str="C:/Program Files (x86)/Steam/steamapps/common/Hunt Showdown/user/profiles/default/attributes.xml"):
+        if os.path.isfile(attributes_path):
+            self.attributes_path = attributes_path
+            self.attributes = self.read_attributes_file()
+            self.content = self.get_match_from_attributes()
+        
         else:
             print(f"ISSUE: Attributes is not valid. Please check the provided path! Quitting...")
             quit(1)
 
-        pass
-        
-    def parseAttributesFile(self):
-        """Get an dictonary from the attributes XML.
+    
+    def read_attributes_file(self):
+        """Get a dictonary from the attributes XML.
 
         Returns:
             dictonary: Includes all information of the attributes.xml
         """
-        tree = ET.parse(self._workingAttributesPath)
+        tree = ET.parse(self.attributes_path)
         root = tree.getroot()
-        _attributes = {}
-        for item in root.findall('./Attr'):
-            _attributes[item.attrib['name']] = item.attrib['value']
-            
-        self.attributes = _attributes
         
-        return _attributes                
-       
-    def enrichMatchup(self, matchup):
-        pass
-                
-    def parseMatchupFromAttributes(self):
-        """This function reads and parses the attributes into a structured dictionary.
+        attributes = {}
+        
+        for item in root.findall('./Attr'):
+            attributes[item.attrib['name']] = item.attrib['value']
+            
+        return attributes
+                     
+    def get_match_from_attributes(self):
+        """This function reads and parses the attributes into a semi-structured dictionary.
+
+        Args:
+            attributes (dictonary): Parsed attributes.xml file
 
         Returns:
             dict: Returns a dictionary containing match, committer & team informations.
+            str: Returns the md5 hash of the match, committer & team informations.
         """
-        _matchup = {'match': {}, 'committer': {} , "teams": {}}
+        match = {'match': {}, 'committer': {}, "teams": {}}
         
         # MATCH SETTINGS
         print('INFO: Parsing match attributes...')
-        _matchup["match"]['unknownboss'] = self.attributes.get('MissionBagBoss_-1')
-        _matchup["match"]['butcher'] = self.attributes.get('MissionBagBoss_0')
-        _matchup["match"]['spider'] = self.attributes.get('MissionBagBoss_1')
-        _matchup["match"]['assassin'] = self.attributes.get('MissionBagBoss_2')
-        _matchup["match"]['scrapbeak'] = self.attributes.get('MissionBagBoss_3')
+        match["match"]['unknownboss'] = self.attributes.get('MissionBagBoss_-1')
+        match["match"]['butcher'] = self.attributes.get('MissionBagBoss_0')
+        match["match"]['spider'] = self.attributes.get('MissionBagBoss_1')
+        match["match"]['assassin'] = self.attributes.get('MissionBagBoss_2')
+        match["match"]['scrapbeak'] = self.attributes.get('MissionBagBoss_3')
         
-        _matchup["match"]['eventid'] = self.attributes.get('LastLiveEventIDLoaded')
-        _matchup["match"]['numberofteams'] = self.attributes.get('MissionBagNumTeams')
-        _matchup["match"]['quickplay'] = self.attributes.get('MissionBagIsQuickPlay')
-        _matchup["match"]['region'] = self.attributes.get('Region')
+        match["match"]['eventid'] = self.attributes.get('LastLiveEventIDLoaded')
+        match["match"]['numberofteams'] = self.attributes.get('MissionBagNumTeams')
+        match["match"]['quickplay'] = self.attributes.get('MissionBagIsQuickPlay')
+        match["match"]['region'] = self.attributes.get('Region')
         
         # COMITTER SETTINGS
-        print('INFO: Committer match attributes...')
-        _matchup["committer"]['displayName'] = self._steamProfile['PersonaName']
-        _matchup["committer"]['steamName'] = self._steamProfile['PersonaName']
+        print('INFO: Committer match self.attributes...')
+        # TODO
+
         # PARSING KEYS FOR PLAYER / TEAMS
-        print('INFO: Parsing player and team attributes...')
+        print('INFO: Parsing player and team self.attributes...')
         for key in self.attributes.keys(): 
             # PLAYER BAGs      
             if re.search(r"MissionBagPlayer_[0-4]_[0-2].", key):
@@ -76,16 +79,16 @@ class pyhunt():
                 __attributeValue = self.attributes[key]
                 
                 # CHECK IF TEAM EXISTS ALREADY
-                if __teamId not in _matchup['teams'].keys():
-                    _matchup['teams'][__teamId] = {}
-                    _matchup['teams'][__teamId]['players'] = {}
+                if __teamId not in match['teams'].keys():
+                    match['teams'][__teamId] = {}
+                    match['teams'][__teamId]['players'] = {}
                 
                 # CHECK IF PLAYER ENTRY IS PRESENT
-                if __playerId not in _matchup['teams'][__teamId]['players'].keys():
-                    _matchup['teams'][__teamId]['players'][__playerId] = {}
+                if __playerId not in match['teams'][__teamId]['players'].keys():
+                    match['teams'][__teamId]['players'][__playerId] = {}
                     
                 # APPEND PLAYER ATTRIBUTE TO MATCHUP FILE
-                _matchup['teams'][__teamId]['players'][__playerId][__attributeId] = __attributeValue 
+                match['teams'][__teamId]['players'][__playerId][__attributeId] = __attributeValue 
                
             # TEAM BAGs 
             elif re.search(r"MissionBagTeam_[0-4].", key):
@@ -94,43 +97,34 @@ class pyhunt():
                 __attributeValue = self.attributes[key]
             
                 # CHECK IF TEAM EXISTS ALREADY
-                if __teamId not in _matchup['teams'].keys():
-                    _matchup['teams'][__teamId] = {}
-                    _matchup['teams'][__teamId]['players'] = {}
+                if __teamId not in match['teams'].keys():
+                    match['teams'][__teamId] = {}
+                    match['teams'][__teamId]['players'] = {}
             
                 # APPEND TEAM ATTRIBUTE TO MATCHUP FILE
-                _matchup["teams"][__teamId][__attributeId] = __attributeValue       
+                match["teams"][__teamId][__attributeId] = __attributeValue       
         
-        # Cleanup match
+        return match
         
         # Check if matchup is the same:
-        if self.getDictonaryFileHash(_matchup, 'md5') != self.getDictonaryFileHash(self.matchup, 'md5'):
-            print(f"INFO: New match hash was found... {self.getDictonaryFileHash(_matchup, 'md5')}")
-            self.matchup = _matchup
-            # CLEAN UP SETP
+        # if self.getDictonaryFileHash(match, 'md5') != self.getDictonaryFileHash(self.matchup, 'md5'):
+        #     print(f"INFO: New match hash was found... {self.getDictonaryFileHash(match, 'md5')}")
+        #     self.matchup = match
+        #     # CLEAN UP SETP
             
             
-            # TODO: COPY TO FILE // Change to kafka-producer
-            datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-            shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
-            with open(f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
-                json.dump(_matchup, f, indent=2)
+        #     # TODO: COPY TO FILE // Change to kafka-producer
+        #     datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        #     shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
+        #     with open(f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
+        #         json.dump(match, f, indent=2)
                 
-            return _matchup
+        #     return match
                 
-        else:
-            print(f"INFO: The match hash is {self.getDictonaryFileHash(self.matchup, 'md5')}")
-            return self.matchup
-    
-    def copyAttributesToWorkPath(self):
-        """This function copies the xml file to our local working directory.
-        """
-        if os.path.isfile(self._workingAttributesPath):
-            os.remove(self._workingAttributesPath)
+        # else:
+        #     print(f"INFO: The match hash is {self.getDictonaryFileHash(self.matchup, 'md5')}")
+        #     return self.matchup
         
-        shutil.copyfile(self._attributesPath, self._workingAttributesPath)
-        
-    
 
 ############################
 ### CLIENT CLASS ###########
@@ -139,10 +133,115 @@ class PyhuntClient():
     """Class for basic client functions like configs, monitoring, etc...
     """
     def __init__(self) -> None:
-        # TRY READ CONFIG AND UPDATE
-        
-        pass
+        # INITIALIZE CONFIG  
+        self.initialize_config() 
+           
+
     
+    ### CONFIG ######################################################
+    def initialize_config(self):
+        # TRY READ CONFIG AND UPDATE
+        self.config_path = PyHuntUtility.get_user_config_file()
+        self.config_dir = os.path.dirname(self.config_path)
+        
+        os.makedirs(self.config_dir, mode=0o777, exist_ok=True)
+        
+        # WRITE NEW CONFIG
+        if not os.path.isfile(self.config_path):
+            print('INFO: Generate new config file...')
+            self.config = self.generate_new_config()
+            self.write_config()
+            
+        # READ FILE  
+        elif os.path.isfile(self.config_path):
+            print("INFO: Read existing config file...")
+            self.read_config()
+        
+        # VALIDATE
+        if not self.config['steam_install_path'] and os.path.isfile(os.path.join(self.config['steam_install_path'], 'steam.exe')): 
+            print(f'ERR: Steam path is not valid. Please add a valid Steam path in {self.config_path}!')
+            quit(1)
+        
+        if not self.config['hunt_install_path'] and os.path.isfile(os.path.join(self.config['hunt_install_path'], 'hunt.exe')): 
+            print(f'ERR: Hunt Showdown path is not valid. Please add a valid Hunt Showdown path in {self.config_path}!')
+            quit(1)
+
+        # OVERWRITE CHANGES
+        self.write_config()
+
+        pass
+ 
+    
+    def write_config(self):
+        json.dump(self.config, open(self.config_path, 'w'), indent=2)
+        pass
+
+    
+    def read_config(self):
+        self.config = json.load(open(self.config_path, 'r'))
+      
+    
+    def generate_new_config(self):
+        # STEAM CONFIG
+        print('INFO: Searching for steam installation path...')
+        _steam_path = PyHuntUtility.get_steam_install_path()
+        if not _steam_path:
+            print('Please enter steam installation path (e.g.: "C:\Program Files (x86)\Steam\\"):\n')
+            _steam_path = input()
+        
+        # HUNT INSTALLATION
+        print('INFO: Searching for Hunt Showdown installation path...')
+        _hunt_path = PyHuntUtility.get_hunt_install_path(_steam_path)
+        _attributes_path = os.path.join(_hunt_path, 'user\\profiles\\default\\attributes.xml')
+        if not _hunt_path:
+            print('Please enter steam installation path (e.g.: "C:\Program Files (x86)\Steam\steamapps\common\Hunt Showdown"):\n')
+            _hunt_path = input()
+        
+        config = {
+            "steam_install_path": _steam_path,
+            "hunt_install_path": _hunt_path,
+            "hunt_attributes_path": _attributes_path,
+            "last_file_hash": "",
+            "last_content_hash": ""
+        }
+        
+        return config
+    
+    ### PROCESS ######################################################        
+    def process(self):
+        # CHECK IF FILE HASH IS DIFFERENT TO LAST KNOWN
+        print(f'INFO: Monitoring {self.config["hunt_attributes_path"]}...')
+        file_hash = PyHuntUtility.get_file_hash(self.config['hunt_attributes_path'])
+        if file_hash != self.config['last_file_hash']:
+            print(f"INFO: New file hash found: {file_hash}")
+            self.config['last_file_hash'] = file_hash
+            self.write_config()
+                        
+            # READ FILE IF NEW FILE HASH WAS FOUND
+            content = pyhunt(self.config['hunt_attributes_path']).content
+            content_hash = PyHuntUtility.get_dict_hash(content)
+            
+            if content_hash != self.config['last_content_hash']:
+                print(f'INFO: New content hash was found: {content_hash}')
+                self.content = content       
+                self.config['last_content_hash'] = content_hash
+                self.write_config()
+                
+                # COPY TO FILE | TODO: Remove
+                datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+                shutil.copyfile(self.config['hunt_attributes_path'], f"temp/attributes_{datestring}_{file_hash}.xml") 
+                with open(f"temp/attributes_{datestring}_{file_hash}.json", 'w') as f:
+                    json.dump(content, f, indent=2)
+                # TODO: Enrich content
+                
+                # TODO: Push to Kafka
+            
+
+                       
+        pass
+        
+    
+    ### PROCESSOR ####################################################
     def start_processor(self, delay = 5):
         """This function starts a infitive loop to watch and process the xml.
 
@@ -154,25 +253,6 @@ class PyhuntClient():
         while True:
             schedule.run_pending()
             time.sleep(delay)
-            
-    def process(self):
-        """This function is a holder for the whole process -> Lookup, copy, parsing and pushing.
-        """
-        # GET LOGGED IN USER
-        self.parsePlayerProfileFromSteam()
-        
-        # CHECK IF FILE HASH HAS CHANGED
-        
-        if self.getAttributesFileHash(self._attributesPath) != self.getAttributesFileHash(self._workingAttributesPath):
-            print('INFO: New file hash was found. Copy file to working directory...')
-            self.copyAttributesToWorkPath()
-            
-            # PARSE ATTRIBUTES FILE
-            self.parseAttributesFile()        
-            self.parseMatchupFromAttributes()
-                  
-        print(f'INFO: File hash is {self.getAttributesFileHash(self._workingAttributesPath, "md5")}' )
-        pass
     
 ############################
 ### UTILITY CLASS ##########
@@ -180,10 +260,13 @@ class PyhuntClient():
 class PyHuntUtility():
     """Class for a collection of utility functions.    
     """
-    
     def __init__(self) -> None:
         pass
     
+    
+    def get_user_config_file():
+        return os.path.join(os.path.expanduser('~'), 'Documents', 'PyHunt', 'config.json')
+
     
     def get_file_hash(path:str, algo='md5'):
         """This function returns the sha256-hash or md4-hash of any given file path 
@@ -240,10 +323,14 @@ class PyHuntUtility():
         Returns:
             str: Install path of steam
         """
-        hkey = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "SOFTWARE\WOW6432Node\Valve\Steam")       
-        return winreg.QueryValueEx(hkey, "InstallPath")[0]
+        try:
+            hkey = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "SOFTWARE\WOW6432Node\Valve\Steam")       
+            return winreg.QueryValueEx(hkey, "InstallPath")[0]
+        except:
+            return None
     
-    def get_steam_profile(steam_path):
+    
+    def get_active_steam_profile(steam_path):
         """This function returns the current logged in user as a dictionary
 
         Returns:
@@ -261,14 +348,29 @@ class PyHuntUtility():
         
         # TODO: GET STEAM PROFILE INFO VIA FILE OR WEBREQUEST
         
-        
         print(f"INFO: Currently logged in is: {steamProfile['PersonaName']} ({steamProfile['AccountName']})") 
         return steamProfile
     
+    def get_hunt_install_path(path_hint=None):
+        install_path = None
+        
+        if path_hint:
+            pattern = path_hint + "\**\hunt.exe"
+            files = glob.glob(pattern, recursive=True)
+            if len(files) > 0:
+                install_path = os.path.dirname(files[0])
+            
+        
+                    
+        # C:\\Program Files (x86)\\Steam\\steamapps\\common\\Hunt Showdown\\
+        
+        return install_path
+        
     
 ####################
 # UAT ##############
 ####################
 if __name__ == "__main__":
-    hunt = pyhunt()
-    hunt.startProcessor()
+    huntClient = PyhuntClient()
+    huntClient.start_processor()
+    quit()
