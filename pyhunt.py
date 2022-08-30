@@ -1,14 +1,11 @@
-from ast import PyCF_ALLOW_TOP_LEVEL_AWAIT
-from genericpath import isfile
+
 import os, shutil, re, json, glob
-from pprint import PrettyPrinter
-from posixpath import dirname
 import datetime, time, schedule
 import hashlib
 import xml.etree.ElementTree as ET
 import winreg
 import vdf
-# C:\Program Files (x86)\Steam\steamapps\common\Hunt Showdown\user\profiles\default
+from confluent_kafka import Producer
  
 ############################
 ### BASE ATTRIBUTE CLASS ###
@@ -118,14 +115,21 @@ class PyhuntClient():
     def __init__(self) -> None:
         # INITIALIZE CONFIG  
         self.initialize_config() 
-           
-
+        
+        # INITIALIZE CAFKA
+        try:
+            self.kafka = Producer(self.kafka_config['main'])
+        except:
+            print(f"WARN: Could not initialize KAFKA Client!")
+            
+        pass
     
     ### CONFIG ######################################################
     def initialize_config(self):
         # TRY READ CONFIG AND UPDATE
         self.config_path = PyHuntUtility.get_user_config_file()
         self.config_dir = os.path.dirname(self.config_path)
+        self.kafka_config = json.load(open(".creds/kafka.json", 'r'))     
         
         os.makedirs(self.config_dir, mode=0o777, exist_ok=True)
         
@@ -245,11 +249,7 @@ class PyhuntClient():
                 # TODO: Enrich content
                 self.steam_profile = PyHuntUtility.get_active_steam_profile(self.config['steam_install_path'])
                 _enriched_content = self.enrich_content()
-                
-                import pprint
-                pp = PrettyPrinter()
-                pp.pprint(_enriched_content)
-                
+                                
                 # COPY TO FILE | TODO: Remove
                 datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
                 shutil.copyfile(self.config['hunt_attributes_path'], f"temp/attributes_{datestring}_{file_hash}.xml") 
@@ -261,7 +261,16 @@ class PyhuntClient():
                     json.dump(_enriched_content, f, indent=2)
                 
                 # TODO: Push to Kafka
+                self.kafka.produce(
+                    topic = "pyhunt_matches", 
+                    key=_enriched_content['match']['match_code'], 
+                    value=json.dumps(_enriched_content)
+                )
+                self.kafka.poll(0)
+                self.kafka.flush()
+                
             
+                
 
                        
         pass
