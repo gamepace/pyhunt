@@ -1,5 +1,7 @@
+from ast import PyCF_ALLOW_TOP_LEVEL_AWAIT
 from genericpath import isfile
 import os, shutil, re, json, glob
+from pprint import PrettyPrinter
 from posixpath import dirname
 import datetime, time, schedule
 import hashlib
@@ -105,26 +107,7 @@ class pyhunt():
                 match["teams"][__teamId][__attributeId] = __attributeValue       
         
         return match
-        
-        # Check if matchup is the same:
-        # if self.getDictonaryFileHash(match, 'md5') != self.getDictonaryFileHash(self.matchup, 'md5'):
-        #     print(f"INFO: New match hash was found... {self.getDictonaryFileHash(match, 'md5')}")
-        #     self.matchup = match
-        #     # CLEAN UP SETP
             
-            
-        #     # TODO: COPY TO FILE // Change to kafka-producer
-        #     datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-        #     shutil.copyfile(self._workingAttributesPath, f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.xml") 
-        #     with open(f"temp/attributes_{datestring}_{self.getAttributesFileHash(self._workingAttributesPath, 'md5')}.json", 'w') as f:
-        #         json.dump(match, f, indent=2)
-                
-        #     return match
-                
-        # else:
-        #     print(f"INFO: The match hash is {self.getDictonaryFileHash(self.matchup, 'md5')}")
-        #     return self.matchup
-        
 
 ############################
 ### CLIENT CLASS ###########
@@ -207,12 +190,44 @@ class PyhuntClient():
         
         return config
     
+    def enrich_content(self):        
+        # STEAM PROFILE
+        _content = self.content
+        _content['committer']['steam_name'] = self.steam_profile['AccountName']
+        _content['committer']['steam_display'] = self.steam_profile['PersonaName']
+        _content['committer']['steam_id'] = self.steam_profile['SteamID']
+        
+        _team_id = PyHuntUtility.get_commiter_team_id(_content, _content['committer']['steam_display'])
+        _content['committer']['team_id'] = _team_id
+        
+        # REMOVE NON-TEAM PLAYER 
+        if _team_id:
+            for player in _content['teams'][_team_id]['players']:
+                if _content['teams'][_team_id]['players'][player]['bloodlinename'] != _content['committer']['steam_display'] and _content['teams'][_team_id]['players'][player]['ispartner'] != 'true':
+                    del _content['teams'][_team_id]['players'][player]
+                    break
+     
+        # GENERATE TEAM IDs
+        team_ids = []
+        for team in _content['teams']:
+            profileids = [] 
+            for player in _content['teams'][team]['players']:
+                profileids.append(_content['teams'][team]['players'][player]['profileid'])
+                
+            _content['teams'][team]['team_code'] = PyHuntUtility.get_identifier_from_list(profileids)
+            team_ids.append(_content['teams'][team]['team_code'])
+        
+        # GENERATE MATCH ID
+        _content['match']['match_code'] = PyHuntUtility.get_identifier_from_list(team_ids)
+        return _content
+    
+    
     ### PROCESS ######################################################        
-    def process(self):
+    def process(self, debug:bool=True):
         # CHECK IF FILE HASH IS DIFFERENT TO LAST KNOWN
         print(f'INFO: Monitoring {self.config["hunt_attributes_path"]}...')
         file_hash = PyHuntUtility.get_file_hash(self.config['hunt_attributes_path'])
-        if file_hash != self.config['last_file_hash'] or True:
+        if file_hash != self.config['last_file_hash'] or debug:
             print(f"INFO: New file hash found: {file_hash}")
             self.config['last_file_hash'] = file_hash
             self.write_config()
@@ -221,19 +236,29 @@ class PyhuntClient():
             content = pyhunt(self.config['hunt_attributes_path']).content
             content_hash = PyHuntUtility.get_dict_hash(content)
             
-            if content_hash != self.config['last_content_hash']:
+            if content_hash != self.config['last_content_hash'] or debug:
                 print(f'INFO: New content hash was found: {content_hash}')
                 self.content = content       
                 self.config['last_content_hash'] = content_hash
                 self.write_config()
                 
+                # TODO: Enrich content
+                self.steam_profile = PyHuntUtility.get_active_steam_profile(self.config['steam_install_path'])
+                _enriched_content = self.enrich_content()
+                
+                import pprint
+                pp = PrettyPrinter()
+                pp.pprint(_enriched_content)
+                
                 # COPY TO FILE | TODO: Remove
                 datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
                 shutil.copyfile(self.config['hunt_attributes_path'], f"temp/attributes_{datestring}_{file_hash}.xml") 
+                
                 with open(f"temp/attributes_{datestring}_{file_hash}.json", 'w') as f:
                     json.dump(content, f, indent=2)
-                # TODO: Enrich content
-                self.steam_profile = PyHuntUtility.get_active_steam_profile(self.config['steam_install_path'])
+                
+                with open(f"temp/attributes_{datestring}_{file_hash}_enc.json", 'w') as f:
+                    json.dump(_enriched_content, f, indent=2)
                 
                 # TODO: Push to Kafka
             
@@ -361,12 +386,40 @@ class PyHuntUtility():
             files = glob.glob(pattern, recursive=True)
             if len(files) > 0:
                 install_path = os.path.dirname(files[0])
+                    
+        return install_path
+    
+    def get_commiter_team_id(content:dict, steam_display_name:str) -> int:
+        """Returns the team id of a given Steam Display Name.
+
+        Args:
+            content (dict): Parsed content from attributes.xml
+            steam_display_name (str): Steam Display Name
+
+        Returns:
+            int: Team ID
+        """
+        for team in content['teams']:
+            if content['teams'][team]['ownteam'] == "true":
+                for player in content['teams'][team]['players']:
+                    if content['teams'][team]['players'][player]['bloodlinename'] == steam_display_name:
+                        return team            
+        return None
+    
+    
+    def get_identifier_from_list(list:list, algo:str='md5') -> str:
+        _string = "_".join(sorted(list))
+        if algo.lower() == 'md5':
+            return hashlib.md5(_string.encode()).hexdigest()
+        
+        elif algo.lower() == 'sha256':
+            return hashlib.sha256(_string.encode()).hexdigest()
+
+        else:
+            print(f'Invalid algo called: {algo}')
+            return None 
             
         
-                    
-        # C:\\Program Files (x86)\\Steam\\steamapps\\common\\Hunt Showdown\\
-        
-        return install_path
         
     
 ####################
@@ -374,6 +427,5 @@ class PyHuntUtility():
 ####################
 if __name__ == "__main__":
     huntClient = PyhuntClient()
-    #huntClient.start_processor()
-    PyHuntUtility.get_active_steam_profile("C:\\Program Files (x86)\\Steam")
+    huntClient.start_processor()
     quit()
