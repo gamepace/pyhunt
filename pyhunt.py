@@ -52,23 +52,52 @@ class pyhunt():
         
         # MATCH SETTINGS
         print('INFO: Parsing match attributes...')
-        match["match"]['unknownboss'] = self.attributes.get('MissionBagBoss_-1')
-        match["match"]['butcher'] = self.attributes.get('MissionBagBoss_0')
-        match["match"]['spider'] = self.attributes.get('MissionBagBoss_1')
-        match["match"]['assassin'] = self.attributes.get('MissionBagBoss_2')
-        match["match"]['scrapbeak'] = self.attributes.get('MissionBagBoss_3')
+        match["match"]['UnknownbossFlag'] = self.attributes.get('MissionBagBoss_-1')
+        match["match"]['ButcherFlag'] = self.attributes.get('MissionBagBoss_0')
+        match["match"]['SpiderFlag'] = self.attributes.get('MissionBagBoss_1')
+        match["match"]['AssassinFlag'] = self.attributes.get('MissionBagBoss_2')
+        match["match"]['ScrapbeakFlag'] = self.attributes.get('MissionBagBoss_3')
         
-        match["match"]['eventid'] = self.attributes.get('LastLiveEventIDLoaded')
-        match["match"]['numberofteams'] = self.attributes.get('MissionBagNumTeams')
-        match["match"]['quickplay'] = self.attributes.get('MissionBagIsQuickPlay')
-        match["match"]['region'] = self.attributes.get('Region')
+        match["match"]['EventId'] = self.attributes.get('LastLiveEventIDLoaded')
+        match["match"]['NumberOfTeams'] = self.attributes.get('MissionBagNumTeams')
+        match["match"]['QuickplayFlag'] = self.attributes.get('MissionBagIsQuickPlay')
+        match["match"]['Region'] = self.attributes.get('Region')
         
         # COMITTER SETTINGS
-        print('INFO: Committer match self.attributes...')
-        # TODO
-
+        print('INFO: Committer match attributes...')
+        
+        # SETTINGS
+        match["committer"]['settings'] = {}
+        settings_attributes = [
+            'AimMode', 'DepthOfField', 'FieldOfView', 'MotionBlur', 'MouseSensitivity', 
+            'MouseSensitivityX', 'MouseSensitivityY', 'MusicVolume', 'MuteVOIPOnDeath', 
+            'Gamma', 'MasterVolume', 'MaxFPS', 'MenuAmbienceVolume', 'PerformanceStatVerbosity', 
+            'RenderResolution', 'Resolution', 'SFXVolume', 'SysSpec', 'SysSpecEffects', 'SysSpecObject',
+            'SysSpecPostProcess', 'SysSpecTextureQuality', 'VOIPInputDevice', 'VOIPOutputDevice'            
+        ]
+        
+        for attribute in settings_attributes:
+            match["committer"]['settings'][attribute] = self.attributes.get(attribute)
+            
+        # MISSION
+        match["committer"]['mission'] = {}
+        mission_attributes = [
+            'MissionBagFbeGoldBonus', 'MissionBagFbeHunterXpBonus',
+            'MissionBagIsFbeBonusEnabled', 'MouseSensitivity', 'MissionBagIsHunterDead', 
+            'HadSummaryScreen', 'HasSeenBrightness', 'HasSeenDarkTribute', 'HasSeenGameModesAdvertisement',
+            'HasSeenIntroductionBountyHunt', 'HasSeenSafeZoneOver', 'HighlightMode', 
+            'HipMouseSensitivity', 'LevelLoadingTimeMissionUnload', 'PCLevelLoadingTimeMissionUnload',
+            'MissionBagNumAccolades', 'MissionBagNumEntries', 'OpenActiveDailies', 'OpenActiveQuests', 
+            'OptOutRichPresence', 'OptionsOpenedFromPauseMenu', 'ShowAdditionalHintBanners', 'ShowTutorials', 
+            'PVEModeLastSelected', 'PVEModeLastSelected/cemetery', 'PVEModeLastSelected/civilwar', 
+            'PVEModeLastSelected/creek', 'Unlocks/UnlockRank'
+        ]
+        
+        for attribute in mission_attributes:
+            match["committer"]['mission'][attribute.replace('/', '_')] = self.attributes.get(attribute.replace('/', '_'))
+        
         # PARSING KEYS FOR PLAYER / TEAMS
-        print('INFO: Parsing player and team self.attributes...')
+        print('INFO: Parsing player and team attributes...')
         for key in self.attributes.keys(): 
             # PLAYER BAGs      
             if re.search(r"MissionBagPlayer_[0-4]_[0-2].", key):
@@ -197,17 +226,17 @@ class PyhuntClient():
     def enrich_content(self):        
         # STEAM PROFILE
         _content = self.content
-        _content['committer']['steam_name'] = self.steam_profile['AccountName']
-        _content['committer']['steam_display'] = self.steam_profile['PersonaName']
-        _content['committer']['steam_id'] = self.steam_profile['SteamID']
+        _content['committer']['SteamName'] = self.steam_profile['AccountName']
+        _content['committer']['SteamDisplayName'] = self.steam_profile['PersonaName']
+        _content['committer']['SteamID'] = self.steam_profile['SteamID']
         
-        _team_id = PyHuntUtility.get_commiter_team_id(_content, _content['committer']['steam_display'])
-        _content['committer']['team_id'] = _team_id
+        _team_id = PyHuntUtility.get_commiter_team_id(_content, _content['committer']['SteamDisplayName'])
+        _content['committer']['TeamID'] = _team_id
         
         # REMOVE NON-TEAM PLAYER 
         if _team_id:
             for player in _content['teams'][_team_id]['players']:
-                if _content['teams'][_team_id]['players'][player]['bloodlinename'] != _content['committer']['steam_display'] and _content['teams'][_team_id]['players'][player]['ispartner'] != 'true':
+                if _content['teams'][_team_id]['players'][player]['bloodlinename'] != _content['committer']['SteamDisplayName'] and _content['teams'][_team_id]['players'][player]['ispartner'] != 'true':
                     del _content['teams'][_team_id]['players'][player]
                     break
      
@@ -218,11 +247,11 @@ class PyhuntClient():
             for player in _content['teams'][team]['players']:
                 profileids.append(_content['teams'][team]['players'][player]['profileid'])
                 
-            _content['teams'][team]['team_code'] = PyHuntUtility.get_identifier_from_list(profileids)
-            team_ids.append(_content['teams'][team]['team_code'])
+            _content['teams'][team]['TeamCode'] = PyHuntUtility.get_identifier_from_list(profileids)
+            team_ids.append(_content['teams'][team]['TeamCode'])
         
         # GENERATE MATCH ID
-        _content['match']['match_code'] = PyHuntUtility.get_identifier_from_list(team_ids)
+        _content['match']['MatchCode'] = PyHuntUtility.get_identifier_from_list(team_ids)
         return _content
     
     
@@ -263,7 +292,7 @@ class PyhuntClient():
                 # TODO: Push to Kafka
                 self.kafka.produce(
                     topic = "pyhunt_matches", 
-                    key=_enriched_content['match']['match_code'], 
+                    key=_enriched_content['match']['MatchCode'], 
                     value=json.dumps(_enriched_content)
                 )
                 self.kafka.poll(0)
