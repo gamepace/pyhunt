@@ -258,11 +258,11 @@ class PyhuntClient():
     
     
     ### PROCESS ######################################################        
-    def process(self, debug:bool=True):
+    def process(self):
         # CHECK IF FILE HASH IS DIFFERENT TO LAST KNOWN
         print(f'INFO: Monitoring {self.config["hunt_attributes_path"]}...')
         file_hash = PyHuntUtility.get_file_hash(self.config['hunt_attributes_path'])
-        if file_hash != self.config['last_file_hash'] or debug:
+        if file_hash != self.config['last_file_hash']:
             print(f"INFO: New file hash found: {file_hash}")
             self.config['last_file_hash'] = file_hash
             self.write_config()
@@ -271,7 +271,7 @@ class PyhuntClient():
             content = pyhunt(self.config['hunt_attributes_path']).content
             content_hash = PyHuntUtility.get_dict_hash(content)
             
-            if content_hash != self.config['last_content_hash'] or debug:
+            if content_hash != self.config['last_content_hash']:
                 print(f'INFO: New content hash was found: {content_hash}')
                 self.content = content       
                 self.config['last_content_hash'] = content_hash
