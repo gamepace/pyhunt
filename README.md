@@ -12,9 +12,7 @@ TBD - Pipeline implementations
 TBD - Release 1.0
 
 ## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
---
-If you have questions feel free to raise a issue here.
+If you have questions or problems feel free to raise a issue [here](https://github.com/gamepace/pyhunt/issues).
 
 ## Roadmap
 
@@ -23,10 +21,12 @@ If you have questions feel free to raise a issue here.
     - [x] Detect changes 
     - [x] Parse to useable format 
 - [ ] Backend infrastructure
-    - [ ] cloud based database / warehouse
-    - [ ] cloud based API instance
+    - [ ] Cloud based database / warehouse
+    - [ ] KAFKA cluster
 - [ ] Commandline Application
+  - [ ] Build pipeline
   - [ ] Automated tracking of matches
+    - [X] KAFKA Connection
   - [ ] Reading specific player stats
   - [ ] Reading global game stats
 

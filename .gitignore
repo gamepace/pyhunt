@@ -2,8 +2,14 @@
 .vscode
 *.code-workspace
 
+# KAFKA CONFIG
+.creds/kafka.json
+
+# FOLDERS
 config/
 temp/
+
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
