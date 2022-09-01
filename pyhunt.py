@@ -73,7 +73,8 @@ class pyhunt():
             'MouseSensitivityX', 'MouseSensitivityY', 'MusicVolume', 'MuteVOIPOnDeath', 
             'Gamma', 'MasterVolume', 'MaxFPS', 'MenuAmbienceVolume', 'PerformanceStatVerbosity', 
             'RenderResolution', 'Resolution', 'SFXVolume', 'SysSpec', 'SysSpecEffects', 'SysSpecObject',
-            'SysSpecPostProcess', 'SysSpecTextureQuality', 'VOIPInputDevice', 'VOIPOutputDevice'            
+            'SysSpecPostProcess', 'SysSpecTextureQuality', 'VOIPInputDevice', 'VOIPOutputDevice', 
+            'ControllerAccelerationTime', 'ControllerAddPercentage'           
         ]
         
         for attribute in settings_attributes:
@@ -145,12 +146,13 @@ class PyhuntClient():
         # INITIALIZE CONFIG  
         self.initialize_config() 
         
-        # INITIALIZE CAFKA
+        # INITIALIZE KAFKA
         try:
             self.kafka = Producer(self.kafka_config['main'])
+            print(f'INFO: Initialized KAFKA Producer.')
         except:
-            print(f"WARN: Could not initialize KAFKA Client!")
-            
+            print(f"WARN: Could not initialize KAFKA Producer!")
+            self.kafka = None         
         pass
     
     ### CONFIG ######################################################
@@ -275,7 +277,7 @@ class PyhuntClient():
                 self.config['last_content_hash'] = content_hash
                 self.write_config()
                 
-                # TODO: Enrich content
+                # Enrich content
                 self.steam_profile = PyHuntUtility.get_active_steam_profile(self.config['steam_install_path'])
                 _enriched_content = self.enrich_content()
                                 
@@ -289,19 +291,20 @@ class PyhuntClient():
                 with open(f"temp/attributes_{datestring}_{file_hash}_enc.json", 'w') as f:
                     json.dump(_enriched_content, f, indent=2)
                 
-                # TODO: Push to Kafka
-                self.kafka.produce(
-                    topic = "pyhunt_matches", 
-                    key=_enriched_content['match']['MatchCode'], 
-                    value=json.dumps(_enriched_content)
-                )
-                self.kafka.poll(0)
-                self.kafka.flush()
-                
-            
-                
-
-                       
+                # Push to Kafka
+                try:
+                    print(f'INFO: Pushing {content_hash} to KAFKA...')
+                    self.kafka.produce(
+                        topic = "pyhunt_matches", 
+                        key=_enriched_content['match']['MatchCode'], 
+                        value=json.dumps(_enriched_content)
+                    )
+                    self.kafka.poll(0)
+                    self.kafka.flush()
+                except:
+                    pass
+                    
+                                        
         pass
         
     
@@ -329,6 +332,11 @@ class PyHuntUtility():
     
     
     def get_user_config_file():
+        """Returns the path to our config file
+
+        Returns:
+            _type_: _description_
+        """
         return os.path.join(os.path.expanduser('~'), 'Documents', 'PyHunt', 'config.json')
 
     
