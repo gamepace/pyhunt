@@ -1,6 +1,7 @@
 
 import os, shutil, re, json, glob
 import datetime, time, schedule
+import textwrap
 import hashlib
 import xml.etree.ElementTree as ET
 import winreg
@@ -142,9 +143,10 @@ class pyhunt():
 class PyhuntClient():
     """Class for basic client functions like configs, monitoring, etc...
     """
-    def __init__(self) -> None:
+    def __init__(self, debug:bool=False) -> None:
         # INITIALIZE CONFIG  
         self.initialize_config() 
+        self.debug = debug
         
         # INITIALIZE KAFKA
         try:
@@ -220,7 +222,8 @@ class PyhuntClient():
             "hunt_install_path": _hunt_path,
             "hunt_attributes_path": _attributes_path,
             "last_file_hash": "",
-            "last_content_hash": ""
+            "last_content_hash": "",
+            "last_enriched_content_hash": ""
         }
         
         return config
@@ -254,15 +257,69 @@ class PyhuntClient():
         
         # GENERATE MATCH ID
         _content['match']['MatchCode'] = PyHuntUtility.get_identifier_from_list(team_ids)
+               
+        
         return _content
     
+    
+    def get_team_summary(self) -> dict:       
+        _team_id = self.enriched_content['committer']['TeamID']
+        _player_name = self.enriched_content['committer']['SteamDisplayName']
+        _player_cards = []
+        
+        for _playerid in self.enriched_content['teams'][_team_id]['players']:
+            _player_card = self.enriched_content['teams'][_team_id]['players'][_playerid]
+            
+            if _player_card['bloodlinename'] == _player_name:
+                _player_card['SteamDisplayName'] = _player_name
+                _player_card['SteamName'] = self.enriched_content['committer']['SteamName']
+                _player_card['SteamID'] = self.enriched_content['committer']['SteamID']
+                
+            else:
+                _player_card['SteamDisplayName'] = "N/A"
+                _player_card['SteamName'] = "N/A"
+                _player_card['SteamID'] = "N/A"
+                
+            _player_cards.append(_player_card)
+        
+        return _player_cards
+    
+    def print_committer_summary(self):
+        player_cards = self.get_team_summary()
+        
+        print(f"{'-'*64}")
+        
+        print(f"""Match:
+        Match Code: {self.enriched_content['match']['MatchCode']}
+        Region: {self.enriched_content['match']['Region'].upper()}
+        Event: {self.enriched_content['match']['EventId']}
+        Quick Play: {self.enriched_content['match']['QuickplayFlag']}
+        """)
+        
+        print(f"""Bosses:
+        UnknownBoss: {self.enriched_content['match']['UnknownbossFlag']}
+        Butcher: {self.enriched_content['match']['ButcherFlag']}
+        Spider: {self.enriched_content['match']['SpiderFlag']}
+        Scrapbeak: {self.enriched_content['match']['ScrapbeakFlag']}
+        """)
+        
+        for i, player_card in enumerate(player_cards):
+            print(f"Player {i}:")
+            print(f"\tSteam Player: {player_card['SteamDisplayName']} ({player_card['SteamName']} | {player_card['SteamID']})")
+            print(f"\tHunt Player: {player_card['bloodlinename']} ({player_card['profileid']})")
+            print(f"\tBounty Pickup: {player_card['bountypickedup']} | Bounty Extract: {player_card['bountyextracted']} | Had Bounty: {player_card['hadbounty']}")
+            print(f"\tHad Wellspring: {player_card['hadwellspring']} | Is Soul Survivor: {player_card['issoulsurvivor']}")
+            print(f"\tMMR: {player_card['mmr']} | Skillbased: {player_card['skillbased']}")
+        
+        print(f"{'-'*64}")
+        pass
     
     ### PROCESS ######################################################        
     def process(self):
         # CHECK IF FILE HASH IS DIFFERENT TO LAST KNOWN
         print(f'INFO: Monitoring {self.config["hunt_attributes_path"]}...')
         file_hash = PyHuntUtility.get_file_hash(self.config['hunt_attributes_path'])
-        if file_hash != self.config['last_file_hash']:
+        if file_hash != self.config['last_file_hash'] or self.debug:
             print(f"INFO: New file hash found: {file_hash}")
             self.config['last_file_hash'] = file_hash
             self.write_config()
@@ -271,7 +328,7 @@ class PyhuntClient():
             content = pyhunt(self.config['hunt_attributes_path']).content
             content_hash = PyHuntUtility.get_dict_hash(content)
             
-            if content_hash != self.config['last_content_hash']:
+            if content_hash != self.config['last_content_hash'] or self.debug:
                 print(f'INFO: New content hash was found: {content_hash}')
                 self.content = content       
                 self.config['last_content_hash'] = content_hash
@@ -279,31 +336,41 @@ class PyhuntClient():
                 
                 # Enrich content
                 self.steam_profile = PyHuntUtility.get_active_steam_profile(self.config['steam_install_path'])
-                _enriched_content = self.enrich_content()
-                                
-                # COPY TO FILE | TODO: Remove
-                datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-                shutil.copyfile(self.config['hunt_attributes_path'], f"temp/attributes_{datestring}_{file_hash}.xml") 
+                enriched_content = self.enrich_content()
+                enriched_content_hash = PyHuntUtility.get_dict_hash(enriched_content)
                 
-                with open(f"temp/attributes_{datestring}_{file_hash}.json", 'w') as f:
-                    json.dump(content, f, indent=2)
-                
-                with open(f"temp/attributes_{datestring}_{file_hash}_enc.json", 'w') as f:
-                    json.dump(_enriched_content, f, indent=2)
-                
-                # Push to Kafka
-                try:
-                    print(f'INFO: Pushing {content_hash} to KAFKA...')
-                    self.kafka.produce(
-                        topic = "pyhunt_matches", 
-                        key=_enriched_content['match']['MatchCode'], 
-                        value=json.dumps(_enriched_content)
-                    )
-                    self.kafka.poll(0)
-                    self.kafka.flush()
-                except:
-                    pass
+                if enriched_content_hash != self.config['last_enriched_content_hash'] or self.debug:
+                    print(f'INFO: New enriched content hash was found: {enriched_content_hash}')
+                    self.enriched_content = enriched_content     
+                    self.config['last_enriched_content_hash'] = enriched_content_hash                                
+                    self.write_config()
+
+                    # COPY TO FILE | TODO: Remove
+                    if self.debug:
+                        datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+                        shutil.copyfile(self.config['hunt_attributes_path'], f"temp/attributes_{datestring}_{file_hash}.xml") 
+                        
+                        with open(f"temp/attributes_{datestring}_{file_hash}.json", 'w') as f:
+                            json.dump(self.enriched_content, f, indent=2)
+
+                    # DUMP PLAYER | TODO: Remove 
+                    self.print_committer_summary()
                     
+                    
+
+                    # Push to Kafka
+                    try:
+                        print(f'INFO: Pushing {content_hash} to KAFKA...')
+                        self.kafka.produce(
+                            topic = "pyhunt_matches", 
+                            key=self.enriched_content['match']['MatchCode'], 
+                            value=json.dumps(self.enriched_content)
+                        )
+                        self.kafka.poll(0)
+                        self.kafka.flush()
+                    except:
+                        pass
+                        
                                         
         pass
         
@@ -315,7 +382,7 @@ class PyhuntClient():
         Args:
             delay (int, optional): Delay between file lookups. Defaults to 5.
         """
-        
+        print(f'INFO: Start process with delay of {delay} seconds and debug is {self.debug}')
         schedule.every(delay).seconds.do(self.process)
         while True:
             schedule.run_pending()
@@ -472,6 +539,6 @@ class PyHuntUtility():
 # UAT ##############
 ####################
 if __name__ == "__main__":
-    huntClient = PyhuntClient()
+    huntClient = PyhuntClient(True)
     huntClient.start_processor()
     quit()
