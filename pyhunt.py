@@ -1,4 +1,3 @@
-
 import os, shutil, re, json, glob
 import datetime, time, schedule
 import textwrap
@@ -235,32 +234,31 @@ class PyhuntClient():
         _content['committer']['SteamDisplayName'] = self.steam_profile['PersonaName']
         _content['committer']['SteamID'] = self.steam_profile['SteamID']
         
-        _team_id = PyHuntUtility.get_commiter_team_id(_content, _content['committer']['SteamDisplayName'])
+        _team_id = PyHuntUtility.get_committer_team_id(_content, _content['committer']['SteamDisplayName'])
         _content['committer']['TeamID'] = _team_id
         
-        # REMOVE NON-TEAM PLAYER 
+        # REMOVE NON-TEAM PLAYER & GET COMMITTER PROFILE ID
         if _team_id:
             for player in _content['teams'][_team_id]['players']:
+                if _content['teams'][_team_id]['players'][player]['bloodlinename'] == _content['committer']['SteamDisplayName']:
+                    _content['committer']['ProfileID'] = _content['teams'][_team_id]['players'][player]['profileid']
+                    
+            for player in _content['teams'][_team_id]['players']:                    
                 if _content['teams'][_team_id]['players'][player]['bloodlinename'] != _content['committer']['SteamDisplayName'] and _content['teams'][_team_id]['players'][player]['ispartner'] != 'true':
                     del _content['teams'][_team_id]['players'][player]
                     break
      
         # GENERATE TEAM IDs
-        team_ids = []
-        for team in _content['teams']:
-            profileids = [] 
-            for player in _content['teams'][team]['players']:
-                profileids.append(_content['teams'][team]['players'][player]['profileid'])
-                
-            _content['teams'][team]['TeamCode'] = PyHuntUtility.get_identifier_from_list(profileids)
-            team_ids.append(_content['teams'][team]['TeamCode'])
-        
+        team_ids = PyHuntUtility.get_team_ids(_content['teams'])
+    
         # GENERATE MATCH ID
         _content['match']['MatchCode'] = PyHuntUtility.get_identifier_from_list(team_ids)
                
-        
-        return _content
-    
+        # PARSE KILL FEED
+        _content = PyHuntUtility.get_committer_killfeed(_content)     
+             
+                       
+        return _content  
     
     def get_team_summary(self) -> dict:       
         _team_id = self.enriched_content['committer']['TeamID']
@@ -311,7 +309,15 @@ class PyhuntClient():
             print(f"\tHad Wellspring: {player_card['hadwellspring']} | Is Soul Survivor: {player_card['issoulsurvivor']}")
             print(f"\tMMR: {player_card['mmr']} | Skillbased: {player_card['skillbased']}")
         
+        print(f"""Committer:
+        Downs: {self.enriched_content['committer']['killfeed']['numdeaths']}
+        Kills: {self.enriched_content['committer']['killfeed']['numkills']}
+        Log: {self.enriched_content['committer']['killfeed']['feed']}
+        """)
+        
         print(f"{'-'*64}")
+        
+        
         pass
     
     ### PROCESS ######################################################        
@@ -345,7 +351,7 @@ class PyhuntClient():
                     self.config['last_enriched_content_hash'] = enriched_content_hash                                
                     self.write_config()
 
-                    # COPY TO FILE | TODO: Remove
+                    # COPY TO FILE
                     if self.debug:
                         datestring = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
                         shutil.copyfile(self.config['hunt_attributes_path'], f"temp/attributes_{datestring}_{file_hash}.xml") 
@@ -353,23 +359,23 @@ class PyhuntClient():
                         with open(f"temp/attributes_{datestring}_{file_hash}.json", 'w') as f:
                             json.dump(self.enriched_content, f, indent=2)
 
-                    # DUMP PLAYER | TODO: Remove 
-                    self.print_committer_summary()
-                    
-                    
+                    # DUMP PLAYER
+                    if self.debug:
+                        self.print_committer_summary()                   
 
                     # Push to Kafka
-                    try:
-                        print(f'INFO: Pushing {content_hash} to KAFKA...')
-                        self.kafka.produce(
-                            topic = "pyhunt_matches", 
-                            key=self.enriched_content['match']['MatchCode'], 
-                            value=json.dumps(self.enriched_content)
-                        )
-                        self.kafka.poll(0)
-                        self.kafka.flush()
-                    except:
-                        pass
+                    if not self.debug:
+                        try:
+                            print(f'INFO: Pushing {content_hash} to KAFKA...')
+                            self.kafka.produce(
+                                topic = "pyhunt_matches", 
+                                key=self.enriched_content['match']['MatchCode'], 
+                                value=json.dumps(self.enriched_content)
+                            )
+                            self.kafka.poll(0)
+                            self.kafka.flush()
+                        except:
+                            pass
                         
                                         
         pass
@@ -502,7 +508,7 @@ class PyHuntUtility():
                     
         return install_path
     
-    def get_commiter_team_id(content:dict, steam_display_name:str) -> int:
+    def get_committer_team_id(content:dict, steam_display_name:str) -> int:
         """Returns the team id of a given Steam Display Name.
 
         Args:
@@ -517,7 +523,6 @@ class PyHuntUtility():
                 for player in content['teams'][team]['players']:
                     if content['teams'][team]['players'][player]['bloodlinename'] == steam_display_name:
                         return team            
-        return None
     
     
     def get_identifier_from_list(list:list, algo:str='md5') -> str:
@@ -531,6 +536,78 @@ class PyHuntUtility():
         else:
             print(f'Invalid algo called: {algo}')
             return None 
+        
+        
+    def get_team_ids(teams:list) -> list:
+        """This function generates all team ids. 
+
+        Args:
+            teams (_type_): List of team dictornaries
+
+        Returns:
+            list: List of generated team ids (md5-hash of profiles)
+        """
+        team_ids = []
+        
+        # LOOP OVER TEAMS
+        for team in teams:
+            profileids = [] 
+            # LOOP OVER PLAYERs
+            for player in teams[team]['players']:
+                profileids.append(teams[team]['players'][player]['profileid'])
+                
+            teams[team]['TeamCode'] = PyHuntUtility.get_identifier_from_list(profileids)
+            team_ids.append(teams[team]['TeamCode'])
+        
+        return team_ids
+    
+    
+    def get_events_from_string(string:str, source:str, target:str, type:str)-> list:
+        string_split = string.split('@')
+        events = []
+        for event in string_split:
+            if re.search(r'~\d{1,2}:\d{1,2}', event):
+                events.append({"target": target, "source": source, "time": event.split(' ~')[1].replace('~', ''), "type": type})
+
+        return events
+
+    def get_committer_killfeed(content)-> dict:
+        _content = content
+        _committer_profileid = content['committer']['ProfileID']
+        feed = []
+        downs = 0
+        kills = 0
+        
+        for teamnum in content['teams']:
+            _team = content['teams'][teamnum]
+            for playernum in _team['players']:
+                _player = _team['players'][playernum]
+                
+                # EVENT PARSING
+                killlog = PyHuntUtility.get_events_from_string(_player['tooltipkilledbyme'], _committer_profileid, _player['profileid'], 'killedbycommitter')
+                downlog = PyHuntUtility.get_events_from_string(_player['tooltipdownedbyme'], _committer_profileid, _player['profileid'], 'downedbycommitter')
+                deathlog =  PyHuntUtility.get_events_from_string(_player['tooltipkilledme'], _player['profileid'], _committer_profileid, 'committerdeath')
+                downedlog = PyHuntUtility.get_events_from_string(_player['tooltipdownedme'], _player['profileid'], _committer_profileid, 'committerdowned')
+
+                # APPEND TO LOG
+                feed.extend(killlog)
+                feed.extend(downlog)
+                feed.extend(deathlog)
+                feed.extend(downedlog)
+                
+                kills += (len(killlog) + len(downlog))
+                downs += (len(downedlog) + len(deathlog))
+
+        # APPEND TO FEED       
+        _content['committer']['killfeed'] = {}
+        _content['committer']['killfeed']['feed'] = feed        
+        _content['committer']['killfeed']['numkills'] = kills
+        _content['committer']['killfeed']['numdeaths'] = downs
+                
+        return _content
+
+    
+    
             
         
         
