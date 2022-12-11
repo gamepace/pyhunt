@@ -1,4 +1,4 @@
 import pyhunt
 
-attributes = pyhunt.huntMonitor()
-print(attributes.steam_path, attributes.hunt_path, attributes.attributes_file)
+monitor = pyhunt.huntMonitor()
+print(monitor.steam_path, monitor.hunt_path, monitor.attributes_file)

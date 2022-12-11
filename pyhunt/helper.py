@@ -81,5 +81,4 @@ def find_attributes_file(hunt_path:str = "C:/Program Files (x86)/Steam/steamapps
         return None
 
 def read_hunt_attributes(attributes_file:str="C:/Program Files (x86)/Steam/steamapps/common/Hunt Showdown/user/profiles/default/attributes.xml"):
-    
     pass
