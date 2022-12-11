@@ -15,24 +15,15 @@ TBD - Release 1.0
 If you have questions or problems feel free to raise a issue [here](https://github.com/gamepace/pyhunt/issues).
 
 ## Roadmap
-
 **Release 1.0**
-- [x] Managing of attribtues.xml
-    - [x] Detect changes 
-    - [x] Parse to useable format 
-- [ ] Backend infrastructure
-    - [ ] Cloud based database / warehouse
-    - [ ] KAFKA cluster
-- [ ] Commandline Application
-  - [ ] Build pipeline
-  - [ ] Automated tracking of matches
-    - [X] KAFKA Connection
-  - [ ] Reading specific player stats
-  - [ ] Reading global game stats
+- Basic features (Parsing match statistics)
+- CLI Application
 
+**Release 2.0**
+- Basic web application to view statistics
 
 ## Contributing
-pyhunt is developed and maintained by the pyhunt community. If you think you can help: We use the gitflow concept with a protected master and develop branch. This means you can clone this repository, open a feature branch, implement a new feature or solve problems and create a merge request! (Make sure you pass the non-existing tests!)
+TBD
 
 ## Authors and acknowledgment
 TBD
