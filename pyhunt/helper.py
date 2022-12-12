@@ -3,6 +3,11 @@ import glob
 import winreg
 import traceback
 import bs4
+import xml.etree.ElementTree as ET
+
+########################################################################
+### Helper Functions ###################################################
+########################################################################
 
 def find_steam_path() -> str:
     """This function uses the windows registry to find the steam installation path.
@@ -57,6 +62,7 @@ def find_hunt_path(steam_path:str = "C:\Program Files (x86)\Steam") -> str:
             print(f'ERROR | The provided path is not valid. (The path is no a valid directory.)')
             return None
 
+
 def find_attributes_file(hunt_path:str = "C:/Program Files (x86)/Steam/steamapps/common/Hunt Showdown/") -> str:
     """This function finds the attributes.xml file inside the Hunt Showdown path.
 
@@ -80,6 +86,31 @@ def find_attributes_file(hunt_path:str = "C:/Program Files (x86)/Steam/steamapps
     else:
         return None
 
-def read_hunt_attributes(attributes_file:str="C:/Program Files (x86)/Steam/steamapps/common/Hunt Showdown/user/profiles/default/attributes.xml"):
+
+def read_hunt_attributes(attributes_file:str="C:/Program Files (x86)/Steam/steamapps/common/Hunt Showdown/user/profiles/default/attributes.xml", filter:list=None):
+    tree = ET.parse(attributes_file)
+    root = tree.getroot()
     
-    pass
+    attributes = {}
+    
+    for item in root.findall('./Attr'):
+        #print(item.attrib['name'], ' | ', item.attrib['value'])
+        attribute_name = item.attrib['name']
+        if '/' in attribute_name:
+            categories = attribute_name.split('/')
+            
+        elif '_' in attribute_name:
+            categories = attribute_name.split('_')
+        
+        else:
+            categories = None
+               
+        
+        if categories:
+            # if 
+            print(categories)
+            break
+        else:
+            attributes[item.attrib['name']] = item.attrib['value']
+        
+    return attributes
